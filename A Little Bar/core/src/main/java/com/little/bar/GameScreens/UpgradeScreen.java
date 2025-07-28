@@ -18,18 +18,12 @@ import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import com.little.bar.Main;
 import com.little.bar.Objects.GameObject;
-
+import com.little.bar.Render.WorldRenderer;
 import java.util.ArrayList;
 
 public class UpgradeScreen implements Screen {
 
-    public static final int TILE_WIDTH = 128;
-    public static final int TILE_HEIGHT = 64;
-    public static final int GRID_SIZE_X = 10;
-    public static final int GRID_SIZE_Y = 10;
-
-    private float mapOffsetX;
-    private float mapOffsetY;
+    private WorldRenderer worldRenderer;
 
     private final Main game;
     private SpriteBatch batch;
@@ -79,16 +73,18 @@ public class UpgradeScreen implements Screen {
         tileTexture = new Texture(Gdx.files.internal("floor-tile.png"));
         tableTexture = new Texture(Gdx.files.internal("table.png"));
 
+        game.barState.addMoney(1000);
         game.barState.getFurniture().add(new GameObject(tableTexture, 1, 3)); // Mesa 1
         game.barState.getFurniture().add(new GameObject(tableTexture, 1, 1));
 
         camera = new OrthographicCamera();
         viewport = new FitViewport(1920, 1080, camera);
+
+        worldRenderer = new WorldRenderer(tileTexture, viewport.getWorldWidth(), viewport.getWorldHeight());
+
         camera.position.set(viewport.getWorldWidth() / 2, viewport.getWorldHeight() / 2, 0);
 
         camera.position.set(viewport.getWorldWidth() / 2, viewport.getWorldHeight() / 2, 0);
-        mapOffsetX = viewport.getWorldWidth() / 2 - TILE_WIDTH / 2;
-        mapOffsetY = viewport.getWorldHeight() * 0.2f;
         camera.update();
 
         uiStage = new Stage(viewport);
@@ -106,12 +102,12 @@ public class UpgradeScreen implements Screen {
                     // Convertir coordenadas de pantalla (x,y) a coordenadas de la cuadrícula
                     // ¡Ojo! Las coordenadas x, y del clic están en el espacio del Stage/Viewport.
                     // Tenemos que "deshacer" el offset del mapa.
-                    float worldX = x - mapOffsetX;
-                    float worldY = y - mapOffsetY - TILE_HEIGHT;
+                    float worldX = x - worldRenderer.getMapOffsetX();
+                    float worldY = y - worldRenderer.getMapOffsetY() - worldRenderer.TILE_HEIGHT;
 
                     // Aplicamos la fórmula inversa
-                    float gridX_float = (worldX / (TILE_WIDTH / 2.0f) + worldY / (TILE_HEIGHT / 2.0f)) / 2.0f;
-                    float gridY_float = (worldY / (TILE_HEIGHT / 2.0f) - (worldX / (TILE_WIDTH / 2.0f))) / 2.0f;
+                    float gridX_float = (worldX / (worldRenderer.TILE_WIDTH / 2.0f) + worldY / (worldRenderer.TILE_HEIGHT / 2.0f)) / 2.0f;
+                    float gridY_float = (worldY / (worldRenderer.TILE_HEIGHT / 2.0f) - (worldX / (worldRenderer.TILE_WIDTH / 2.0f))) / 2.0f;
 
                     // Redondeamos al entero más cercano
                     int gridX = Math.round(gridX_float);
@@ -205,17 +201,7 @@ public class UpgradeScreen implements Screen {
         // 4. Empezamos a dibujar
         batch.begin();
 
-        // 5. Dibujamos la cuadrícula
-        for (int gridY = 0; gridY < GRID_SIZE_Y; gridY++) {
-            for (int gridX = 0; gridX < GRID_SIZE_X; gridX++) {
-                // Aplicamos la fórmula mágica
-                float screenX = (gridX - gridY) * (TILE_WIDTH / 2.0f);
-                float screenY = (gridX + gridY) * (TILE_HEIGHT / 2.0f);
-
-                // Dibujamos el tile en la posición calculada
-                batch.draw(tileTexture, screenX + mapOffsetX, screenY + mapOffsetY);
-            }
-        }
+       worldRenderer.render(batch, game.barState);
 
         game.barState.getFurniture().sort((o1, o2) -> {
             // Si Y son diferentes, el que tenga Y mayor va primero (se dibuja antes)
@@ -228,13 +214,13 @@ public class UpgradeScreen implements Screen {
         });
         for (GameObject obj : game.barState.getFurniture()) {
             // Usamos la misma fórmula isométrica
-            float screenX = (obj.getGridX() - obj.getGridY()) * (TILE_WIDTH / 2.0f);
-            float screenY = (obj.getGridX() + obj.getGridY()) * (TILE_HEIGHT / 2.0f);
+            float screenX = (obj.getGridX() - obj.getGridY()) * (worldRenderer.TILE_WIDTH / 2.0f);
+            float screenY = (obj.getGridX() + obj.getGridY()) * (worldRenderer.TILE_HEIGHT / 2.0f);
 
             // Ojo al anclaje: puede que necesitemos ajustar la Y para que el objeto se pose sobre el tile.
             // La base del sprite debe coincidir con la "punta" superior del rombo del tile.
             // Por ahora, lo dibujamos en la posición base.
-            batch.draw(obj.getTexture(), screenX + mapOffsetX, screenY + mapOffsetY + TILE_HEIGHT);
+            batch.draw(obj.getTexture(), screenX + worldRenderer.getMapOffsetX(), screenY + worldRenderer.getMapOffsetY() + worldRenderer.TILE_HEIGHT);
         }
         batch.end();
         uiStage.act(delta);
